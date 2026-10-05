@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SquatLab - Análisis bioinstrumental de la sentadilla</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--tx:#e2e8f0;--mut:#94a3b8;--ac:#38bdf8;--ok:#4ade80;--warn:#fbbf24}
+*{box-sizing:border-box}body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--tx)}
+header,main{max-width:1100px;margin:auto;padding:16px}
+h1{margin:0;font-size:22px}h2{margin:0 0 8px;font-size:16px}p.s{color:var(--mut);margin:4px 0 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:12px;padding:14px}
+.stage{position:relative;margin:8px 0;width:100%;background:#000;border-radius:8px;overflow:hidden;display:flex;justify-content:center;align-items:center;border:2px dashed #334155;transition:border-color .2s}
+.stage.dragover{border-color:var(--ac)}
+video{width:100%;max-height:360px;display:block;object-fit:contain}
+#ov{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;object-fit:contain}
+button,label.b{background:var(--ac);color:#04243a;border:0;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer;display:inline-block;margin:3px 3px 3px 0;font-size:14px;text-align:center}
+.g{background:#334155!important;color:var(--tx)!important}button:disabled{opacity:.45;cursor:default}
+input[type=file]{display:none}.row{display:flex;align-items:center;gap:8px;margin:6px 0;flex-wrap:wrap}.row span{min-width:150px;color:var(--mut)}
+select{background:#0b1220;color:var(--tx);border:1px solid #334155;border-radius:6px;padding:4px}
+.chart-box{position:relative;width:100%;height:230px;margin-bottom:10px}
+#ch{width:100%;height:100%;background:#0b1220;border-radius:8px;border:1px solid #334155;cursor:crosshair;display:block}
+.kk{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.kk div{background:#0b1220;border-radius:8px;padding:10px;border:1px solid #334155;text-align:center}
+.kk small{color:var(--mut);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+.k{font-size:22px;font-weight:700;color:var(--ac);margin-top:2px;display:block}
+.table-container{max-height:200px;overflow-y:auto;border:1px solid #334155;border-radius:8px;margin-top:10px;background:#0b1220}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#0f172a;color:var(--mut);font-weight:600;position:sticky;top:0;padding:8px 6px;border-bottom:1px solid #334155;text-align:center;z-index:1}
+td{padding:8px 6px;border-bottom:1px solid #1e293b;text-align:center}
+tr:nth-child(even){background:rgba(255,255,255,.02)}
+#interp{margin:10px 0;padding:12px;border-radius:8px;background:#0b1220;border:1px solid #334155;font-size:13px;line-height:1.4}
+.badge{display:inline-block;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-success{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid #22c55e}
+.badge-warning{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid #f59e0b}
+.badge-info{background:rgba(56,189,248,.15);color:#38bdf8;border:1px solid #38bdf8}
+.interp-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid #1e293b}
+.interp-item{font-size:12px;color:var(--mut)}.interp-item b{color:var(--tx)}
+#st{color:var(--mut);margin:6px 0;min-height:20px;font-size:13px}
+details{margin-top:8px;color:var(--mut);font-size:13px}
+#kine{margin:10px 0;padding:12px;border-radius:8px;background:#0b1220;border:1px solid #334155;font-size:13px;line-height:1.5}
+#kine h3{margin:0 0 8px;font-size:14px;color:var(--ac)}
+.ki{margin:6px 0}.ki b{color:var(--tx)}#kine ul{margin:4px 0 0;padding-left:18px;color:var(--mut)}
+#kine small{color:var(--mut);display:block;margin-top:8px}
+input[type=text]{background:#0b1220;color:var(--tx);border:1px solid #334155;border-radius:6px;padding:5px;flex:1;min-width:140px}
+</style>
+</head>
+<body>
+<header>
+<h1>SquatLab · Análisis bioinstrumental de la sentadilla</h1>
+<p class="s">Problema: profundidad insuficiente durante la sentadilla en rehabilitación de rodilla. Variable: ángulo de flexión de rodilla (cadera-rodilla-tobillo).</p>
+</header>
+<main class="grid">
+<section class="card">
+<h2>1. Entrada de datos</h2>
+<label class="b">Cargar video<input id="fv" type="file" accept="video/*"></label>
+<label class="b g">Cargar CSV (t, ángulo)<input id="fc" type="file" accept=".csv,text/csv"></label>
+<button class="g" id="demo">Datos de demostración</button>
+<div class="stage" id="dropArea"><video id="v" playsinline muted controls></video><canvas id="ov"></canvas></div>
+<div class="row">
+  <button id="go">Analizar video</button>
+  <button id="stop" class="g" disabled>Detener</button>
+  <select id="rate"><option value="0.5">Velocidad 0.5x (más preciso)</option><option value="1">Velocidad 1x</option></select>
+</div>
+<h2 style="margin-top:12px">2. Parámetros</h2>
+<div class="row"><span>Lado analizado</span><select id="side"><option value="L">Izquierda</option><option value="R">Derecha</option></select></div>
+<div class="row"><span>Suavizado: <b id="smv">5</b> cuadros</span><input id="sm" type="range" min="1" max="15" step="2" value="5"></div>
+<div class="row"><span>Umbral descenso: <b id="dnv">130</b>°</span><input id="dn" type="range" min="80" max="150" value="130"></div>
+<div class="row"><span>Umbral ascenso: <b id="upv">160</b>°</span><input id="up" type="range" min="140" max="178" value="160"></div>
+<div class="row"><span>Paciente / ID</span><input type="text" id="pn" placeholder="Opcional (para el informe)"></div>
+<div id="st">Cargue un video, un CSV o use los datos de demostración.</div>
+<details><summary>Recomendaciones de registro</summary>Cámara fija a 2-3 m, altura de cadera, vista lateral (plano sagital) con la pierna a analizar hacia la cámara, cuerpo completo visible, buena luz. El ángulo es una proyección 2D: es un valor aproximado, no goniometría 3D. CSV: columnas tiempo (s) y ángulo de rodilla (°).</details>
+</section>
+
+<section class="card">
+<h2>3. Resultados del Análisis</h2>
+<div class="kk">
+  <div><small>Repeticiones</small><span class="k" id="kr">-</span></div>
+  <div><small>Ángulo mín. medio</small><span class="k" id="kd">-</span></div>
+  <div><small>Rango medio (ROM)</small><span class="k" id="ka">-</span></div>
+</div>
+<div class="chart-box"><canvas id="ch"></canvas></div>
+<div id="interp" hidden></div>
+<div id="kine" hidden></div>
+<div class="table-container"><table>
+<thead><tr><th>Rep</th><th>Mín. (°)</th><th>Desc. (s)</th><th>Asc. (s)</th><th>Vel. (°/s)</th><th>ROM (°)</th></tr></thead>
+<tbody id="tb"></tbody></table></div>
+<div class="row" style="margin-top:12px"><button id="rep" disabled>Generar informe (PDF)</button><button id="dl" class="g" disabled>Descargar CSV procesado</button></div>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const vid=$('v'),ov=$('ov'),oc=ov.getContext('2d'),dropArea=$('dropArea');
+let lm=null,MP=null,data=[],running=false,lastTs=0,out=null,trajectory=[],hoverIndex=-1;
+let fromVideo=false,kdat=null;
+const DEEP=95,MID=115; // criterio único de profundidad (°)
+const colorDepth=a=>a<=DEEP?'#4ade80':a<=MID?'#fbbf24':'#38bdf8';
+const st=m=>$('st').textContent=m;
+const setB=()=>{$('go').disabled=running;$('stop').disabled=!running};
+
+/* ---------- Modelo de pose ---------- */
+async function initPose(){
+  if(lm)return;
+  st('Cargando modelo de pose (primera vez, ~10 s)...');
+  const V='https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+  MP=await import(V+'/vision_bundle.mjs');
+  const fs=await MP.FilesetResolver.forVisionTasks(V+'/wasm');
+  lm=await MP.PoseLandmarker.createFromOptions(fs,{
+    baseOptions:{modelAssetPath:'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task'},
+    runningMode:'VIDEO',numPoses:1});
+}
+
+/* ---------- Cinemática y overlay ---------- */
+function ang(a,b,c){
+  const u=[a.x-b.x,a.y-b.y],w=[c.x-b.x,c.y-b.y],m=Math.hypot(...u)*Math.hypot(...w);
+  return m?Math.acos(Math.max(-1,Math.min(1,(u[0]*w[0]+u[1]*w[1])/m)))*180/Math.PI:NaN;
+}
+function knee(p,h,k,a,W,H){
+  if(!p[h]||!p[k]||!p[a])return NaN;
+  if(Math.min(p[h].visibility||1,p[k].visibility||1,p[a].visibility||1)<.35)return NaN;
+  const P=i=>({x:p[i].x*W,y:p[i].y*H});
+  return ang(P(h),P(k),P(a));
+}
+function drawSegment(p,[h,k,a],color,lw,W,H){
+  if(!p[h]||!p[k]||!p[a])return;
+  const P=i=>({x:p[i].x*W,y:p[i].y*H}),pts=[P(h),P(k),P(a)];
+  oc.strokeStyle=color;oc.lineWidth=lw;oc.lineCap='round';oc.lineJoin='round';
+  oc.beginPath();oc.moveTo(pts[0].x,pts[0].y);oc.lineTo(pts[1].x,pts[1].y);oc.lineTo(pts[2].x,pts[2].y);oc.stroke();
+  pts.forEach(pt=>{oc.beginPath();oc.arc(pt.x,pt.y,lw*1.5,0,Math.PI*2);oc.fillStyle=color;oc.fill()});
+}
+function drawOverlay(p,ka){
+  oc.clearRect(0,0,ov.width,ov.height);
+  if(!p)return;
+  const W=ov.width,H=ov.height,side=$('side').value;
+  const act=side==='L'?[23,25,27]:[24,26,28],oth=side==='L'?[24,26,28]:[23,25,27];
+  drawSegment(p,oth,'rgba(148,163,184,.3)',2,W,H);
+  const color=isNaN(ka)?'#38bdf8':colorDepth(ka);
+  const kPt=p[act[1]];
+  if(kPt&&(kPt.visibility||1)>.4){trajectory.push({x:kPt.x*W,y:kPt.y*H});if(trajectory.length>40)trajectory.shift()}
+  if(trajectory.length>1){
+    oc.beginPath();oc.strokeStyle='rgba(56,189,248,.4)';oc.lineWidth=2;
+    trajectory.forEach((pt,i)=>i?oc.lineTo(pt.x,pt.y):oc.moveTo(pt.x,pt.y));oc.stroke();
+  }
+  drawSegment(p,act,color,4,W,H);
+  if(kPt&&!isNaN(ka)){
+    const kx=kPt.x*W,ky=kPt.y*H,txt=ka.toFixed(1)+'°';
+    oc.font='bold 13px system-ui';const tw=oc.measureText(txt).width;
+    oc.fillStyle='rgba(11,18,32,.85)';oc.strokeStyle=color;oc.lineWidth=1.5;
+    oc.beginPath();
+    if(oc.roundRect)oc.roundRect(kx+12,ky-14,tw+14,24,6);else oc.rect(kx+12,ky-14,tw+14,24);
+    oc.fill();oc.stroke();
+    oc.fillStyle='#fff';oc.fillText(txt,kx+19,ky+2);
+  }
+}
+
+/* ---------- Carga de archivos ---------- */
+function resetData(){
+  running=false;setB();vid.pause();
+  data=[];out=null;trajectory=[];hoverIndex=-1;
+  oc.clearRect(0,0,ov.width,ov.height);
+  $('tb').innerHTML='';$('kr').textContent='-';$('kd').textContent='-';$('ka').textContent='-';
+  $('interp').hidden=true;$('dl').disabled=true;$('rep').disabled=true;$('kine').hidden=true;fromVideo=false;kdat=null;
+  const c=$('ch');c.getContext('2d').clearRect(0,0,c.width,c.height);
+}
+function processVideoFile(file){
+  const okExt=/\.(mp4|mov|m4v|webm|mkv|avi|3gp)$/i.test(file?file.name:'');
+  if(!file||!(file.type.startsWith('video/')||okExt)){st('Por favor cargue un archivo de video válido.');return}
+  resetData();
+  vid.onerror=()=>st('El navegador no puede reproducir este video (códec no compatible, p. ej. HEVC/H.265). Conviértalo a MP4 H.264 e intente de nuevo.');
+  vid.src=URL.createObjectURL(file);
+  vid.load();
+  vid.onloadedmetadata=()=>{ov.width=vid.videoWidth||640;ov.height=vid.videoHeight||480;st(`Video "${file.name}" cargado. Presione "Analizar video".`)};
+}
+$('fv').onchange=e=>processVideoFile(e.target.files[0]);
+dropArea.addEventListener('dragover',e=>{e.preventDefault();dropArea.classList.add('dragover')});
+dropArea.addEventListener('dragleave',()=>dropArea.classList.remove('dragover'));
+dropArea.addEventListener('drop',e=>{
+  e.preventDefault();dropArea.classList.remove('dragover');
+  if(e.dataTransfer.files&&e.dataTransfer.files[0])processVideoFile(e.dataTransfer.files[0]);
+});
+
+/* ---------- Adquisición ---------- */
+async function analizar(){
+  if(!vid.src){st('Primero cargue un video.');return}
+  try{await initPose()}catch(e){st('No se pudo cargar el modelo de IA. Verifique su conexión a internet.');return}
+  data=[];trajectory=[];out=null;running=true;fromVideo=true;setB();
+  ov.width=vid.videoWidth||640;ov.height=vid.videoHeight||480;
+  vid.currentTime=0;vid.playbackRate=+$('rate').value;
+  st('Analizando video...');
+  try{await vid.play()}catch(e){running=false;setB();st('No se pudo reproducir el video.');return}
+  lastTs=performance.now();sched();
+}
+const sched=()=>{
+  if(!running)return;
+  if(vid.requestVideoFrameCallback)vid.requestVideoFrameCallback(loop);
+  else requestAnimationFrame(()=>loop());
+};
+function loop(_,meta){
+  if(!running)return;
+  const t=meta?meta.mediaTime:vid.currentTime,now=performance.now();
+  lastTs=now<=lastTs?lastTs+1:now;
+  let p=null;
+  if(vid.readyState>=2){
+    const res=lm.detectForVideo(vid,Math.round(lastTs));
+    if(res&&res.landmarks&&res.landmarks.length)p=res.landmarks[0];
+  }
+  const W=vid.videoWidth,H=vid.videoHeight;
+  const lA=p?knee(p,23,25,27,W,H):NaN,rA=p?knee(p,24,26,28,W,H):NaN;
+  drawOverlay(p,$('side').value==='L'?lA:rA);
+  data.push({t,L:lA,R:rA});
+  st(`Analizando... ${vid.duration?((t/vid.duration)*100).toFixed(0):0}% (t = ${t.toFixed(1)} s)`);
+  sched();
+}
+function finish(){
+  running=false;vid.pause();setB();
+  if(data.length){st(`Análisis completo: ${data.length} cuadros procesados.`);procesar()}
+}
+vid.onended=()=>{if(running)finish()};
+
+/* ---------- Métricas ---------- */
+const ma=(a,k)=>a.map((_,i)=>{let s=0,n=0;for(let j=Math.max(0,i-(k>>1));j<=Math.min(a.length-1,i+(k>>1));j++)if(!isNaN(a[j])){s+=a[j];n++}return n?s/n:NaN});
+function reps(s,dn,up){
+  const r=[];let top=0,bot=0,state=0;
+  s.forEach((v,i)=>{if(isNaN(v))return;
+    if(!state){if(v>=up)top=i;if(v<dn){state=1;bot=i}}
+    else{if(v<s[bot])bot=i;if(v>=up){r.push({a:top,b:bot,c:i});state=0;top=i}}});
+  return r;
+}
+function procesar(){
+  if(data.length<5){st('Datos insuficientes para procesar.');return}
+  const t=data.map(d=>d.t),k=+$('sm').value,sd=$('side').value;
+  const L=ma(data.map(d=>d.L),k),R=ma(data.map(d=>d.R),k),s=sd=='L'?L:R;
+  const dn=+$('dn').value,up=Math.max(+$('up').value,dn+10),rs=reps(s,dn,up);
+  const rows=rs.map(r=>{
+    const te=t[r.b]-t[r.a],as=s[r.a]-s[r.b];
+    return{d:s[r.b],te,tc:t[r.c]-t[r.b],v:te>0?as/te:NaN,as};
+  });
+  const mean=f=>{const x=rows.map(f).filter(v=>!isNaN(v)&&isFinite(v));return x.length?x.reduce((a,b)=>a+b)/x.length:NaN};
+  const fx=(v,n,u)=>isNaN(v)?'-':v.toFixed(n)+u;
+  $('tb').innerHTML=rows.map((r,i)=>`<tr><td><b>#${i+1}</b></td>
+    <td><span style="color:${colorDepth(r.d)};font-weight:600">${r.d.toFixed(1)}°</span></td>
+    <td>${fx(r.te,2,' s')}</td><td>${fx(r.tc,2,' s')}</td><td>${fx(r.v,0,' °/s')}</td><td>${fx(r.as,0,'°')}</td></tr>`).join('');
+  const md=mean(r=>r.d),mr=mean(r=>r.as),mv=mean(r=>r.v),mt=mean(r=>r.te);
+  $('kr').textContent=rows.length;
+  $('kd').textContent=rows.length?md.toFixed(0)+'°':'-';
+  $('ka').textContent=fx(mr,0,'°');
+  const I=$('interp');I.hidden=!rows.length;
+  if(rows.length){
+    let bc='badge-success',lv='Profundidad Paralela / Profunda (≤ 95°)';
+    if(md>DEEP&&md<=MID){bc='badge-warning';lv='Profundidad Parcial / Media (96° - 115°)'}
+    else if(md>MID){bc='badge-info';lv='Profundidad Limitada (> 115°)'}
+    I.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:6px">
+      <span class="badge ${bc}">${lv}</span><small style="color:var(--mut)">Evaluación cualitativa global</small></div>
+      <div class="interp-grid">
+      <div class="interp-item">⏱ Tiempo desc. medio: <b>${fx(mt,2,'s')}</b></div>
+      <div class="interp-item">⚡ Vel. bajada media: <b>${fx(mv,0,' °/s')}</b></div>
+      <div class="interp-item">📐 Rango de mov. (ROM): <b>${fx(mr,0,'°')}</b></div>
+      <div class="interp-item">🎯 Flexión máx. media: <b>${md.toFixed(1)}°</b></div></div>`;
+  }else st('No se detectaron repeticiones: ajuste los umbrales o verifique el video.');
+  out={t,L,R,s,rs,dn,up,rows};
+  kdat=kine(rows,out);const K=$('kine');K.hidden=!kdat;if(kdat)K.innerHTML=kdat.html;$('rep').disabled=!kdat;
+  chart();
+  $('dl').disabled=false;
+}
+for(const id of['sm','dn','up','side'])$(id).oninput=()=>{
+  $('smv').textContent=$('sm').value;$('dnv').textContent=$('dn').value;$('upv').textContent=$('up').value;
+  if(data.length&&!running)procesar();
+};
+
+/* ---------- Gráfico ---------- */
+function chart(){
+  if(!out)return;
+  const {t,s,rs,dn,up}=out,c=$('ch'),d=devicePixelRatio||1;
+  const w=c.parentElement.clientWidth,h=c.parentElement.clientHeight;
+  c.width=w*d;c.height=h*d;
+  const x=c.getContext('2d');x.scale(d,d);
+  const m={l:45,r:15,t:15,b:25},T0=t[0],T1=t[t.length-1],Y0=40,Y1=185;
+  const X=v=>m.l+(v-T0)/((T1-T0)||1)*(w-m.l-m.r);
+  const Y=v=>m.t+(Y1-v)/(Y1-Y0)*(h-m.t-m.b);
+  x.fillStyle='#0b1220';x.fillRect(0,0,w,h);
+  x.fillStyle='rgba(34,197,94,.08)';x.fillRect(m.l,Y(DEEP),w-m.l-m.r,Y(Y0)-Y(DEEP));
+  x.font='11px system-ui';x.fillStyle='#94a3b8';x.strokeStyle='#1e293b';x.lineWidth=1;
+  for(let a=60;a<=180;a+=30){x.beginPath();x.moveTo(m.l,Y(a));x.lineTo(w-m.r,Y(a));x.stroke();x.fillText(a+'°',10,Y(a)+4)}
+  const nT=Math.max(1,Math.min(8,Math.floor(T1-T0)));
+  for(let i=0;i<=nT;i++){const v=T0+(T1-T0)*i/nT;x.fillText(v.toFixed(1)+' s',X(v)-12,h-6)}
+  rs.forEach(r=>{x.fillStyle='rgba(56,189,248,.08)';x.fillRect(X(t[r.a]),m.t,X(t[r.c])-X(t[r.a]),h-m.t-m.b)});
+  [[dn,'#f59e0b'],[up,'#22c55e']].forEach(([v,col])=>{
+    x.strokeStyle=col;x.setLineDash([4,4]);x.beginPath();x.moveTo(m.l,Y(v));x.lineTo(w-m.r,Y(v));x.stroke();x.setLineDash([]);
+  });
+  const fg=x.createLinearGradient(0,m.t,0,h-m.b);
+  fg.addColorStop(0,'rgba(56,189,248,.35)');fg.addColorStop(1,'rgba(56,189,248,0)');
+  x.beginPath();
+  let first=true,lastI=-1;
+  s.forEach((v,i)=>{
+    if(isNaN(v))return;
+    if(first){x.moveTo(X(t[i]),Y(v));first=false}else x.lineTo(X(t[i]),Y(v));
+    lastI=i;
+  });
+  if(lastI>=0){
+    x.strokeStyle='#38bdf8';x.lineWidth=2;x.stroke();
+    x.lineTo(X(t[lastI]),Y(Y0));x.lineTo(X(t[s.findIndex(v=>!isNaN(v))]),Y(Y0));
+    x.fillStyle=fg;x.fill();
+  }
+  rs.forEach(r=>{x.beginPath();x.arc(X(t[r.b]),Y(s[r.b]),4,0,7);x.fillStyle='#fbbf24';x.fill()});
+  if(hoverIndex>=0&&!isNaN(s[hoverIndex])){
+    const px=X(t[hoverIndex]),py=Y(s[hoverIndex]);
+    x.strokeStyle='#64748b';x.beginPath();x.moveTo(px,m.t);x.lineTo(px,h-m.b);x.stroke();
+    x.fillStyle='#fff';x.fillText(s[hoverIndex].toFixed(1)+'° · '+t[hoverIndex].toFixed(2)+' s',Math.min(px+6,w-110),m.t+10);
+    x.beginPath();x.arc(px,py,4,0,7);x.fill();
+  }
+}
+function hover(clientX){
+  if(!out)return;
+  const r=$('ch').getBoundingClientRect(),T0=out.t[0],T1=out.t[out.t.length-1];
+  const tt=T0+(clientX-r.left-45)/(r.width-60)*(T1-T0);
+  let b=0,bd=1e9;out.t.forEach((v,i)=>{const dd=Math.abs(v-tt);if(dd<bd){bd=dd;b=i}});
+  hoverIndex=b;chart();
+}
+$('ch').onmousemove=e=>hover(e.clientX);
+$('ch').ontouchmove=e=>hover(e.touches[0].clientX);
+$('ch').onmouseleave=()=>{hoverIndex=-1;chart()};
+addEventListener('resize',chart);
+
+/* ---------- Botones ---------- */
+$('go').onclick=analizar;
+$('stop').onclick=finish;
+$('fc').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;resetData();
+  data=(await f.text()).split(/\r?\n/).map(l=>l.split(/[,;]/).map(parseFloat))
+    .filter(a=>a.length>=2&&!isNaN(a[0])&&!isNaN(a[1])).map(a=>({t:a[0],L:a[1],R:a[1]}));
+  st('CSV cargado: '+data.length+' filas.');procesar();
+};
+$('demo').onclick=()=>{
+  resetData();
+  for(let i=0;i<=360;i++){
+    const t=i/30,a=170-80*(.5-.5*Math.cos(2*Math.PI*t/4))+(Math.random()-.5)*2;
+    data.push({t,L:a,R:a});
+  }
+  st('Datos de demostración (3 repeticiones).');procesar();
+};
+$('dl').onclick=()=>{
+  if(!out)return;
+  const csv='t,izq,der,suavizado\n'+out.t.map((v,i)=>[v,out.L[i],out.R[i],out.s[i]].join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='sentadilla_procesado.csv';a.click();
+};
+
+/* ---------- Análisis kinesiológico ---------- */
+function kine(rows,o){
+  const n=rows.length;if(!n)return null;
+  const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+  const sdv=a=>{const m=avg(a);return Math.sqrt(avg(a.map(v=>(v-m)**2)))};
+  const mins=rows.map(r=>r.d),md=avg(mins),fl=180-md,sd=sdv(mins);
+  const te=avg(rows.map(r=>r.te)),tc=avg(rows.map(r=>r.tc));
+  const vs=rows.map(r=>r.v).filter(isFinite),mv=vs.length?avg(vs):NaN;
+  const drift=n>=3?mins[n-1]-mins[0]:NaN;
+  const it=[],rc=[];
+
+  if(md<=DEEP){
+    it.push(['Profundidad',`Flexión máxima media de ${fl.toFixed(0)}° (ángulo interno ${md.toFixed(0)}°). Alcanza flexión profunda: indica buena movilidad de rodilla, cadera y tobillo, con alta exigencia de cuádriceps y glúteo mayor en el tramo final.`]);
+    rc.push('Mantener la profundidad alcanzada y progresar la carga solo si no hay dolor ni derrame.');
+  }else if(md<=MID){
+    it.push(['Profundidad',`Flexión parcial: ${fl.toFixed(0)}° de flexión media (ángulo interno ${md.toFixed(0)}°). Cubre el rango funcional cotidiano (sentarse, subir escaleras), pero queda sobre una sentadilla paralela.`]);
+    rc.push('Progresar la profundidad de forma gradual (p. ej. apoyo en cajón de altura regulable), respetando el dolor.');
+  }else{
+    it.push(['Profundidad',`Flexión limitada: ${fl.toFixed(0)}° de flexión media (ángulo interno ${md.toFixed(0)}°). Hipótesis a descartar en la evaluación clínica: déficit de flexión de rodilla, dolor o derrame, inhibición o debilidad del cuádriceps, rigidez de dorsiflexión de tobillo o miedo al movimiento.`]);
+    rc.push('Trabajar movilidad de rodilla y tobillo y fortalecimiento del cuádriceps en rango disponible antes de aumentar la profundidad.');
+  }
+
+  it.push(['Consistencia',sd<5?`Alta repetibilidad entre repeticiones (DE ${sd.toFixed(1)}°): patrón motor estable.`
+    :sd<=10?`Variabilidad moderada entre repeticiones (DE ${sd.toFixed(1)}°).`
+    :`Alta variabilidad entre repeticiones (DE ${sd.toFixed(1)}°): control motor poco estable.`]);
+  if(sd>5)rc.push('Usar una referencia de profundidad (cajón o cuerda) o retroalimentación visual para estandarizar el rango.');
+
+  const ratio=tc>0?te/tc:NaN;
+  it.push(['Tempo',`Descenso medio ${te.toFixed(2)} s, ascenso ${tc.toFixed(2)} s (relación ${isNaN(ratio)?'-':ratio.toFixed(2)}), velocidad angular de descenso ${isNaN(mv)?'-':mv.toFixed(0)} °/s. `+
+    (te<1?'Descenso rápido: menor control excéntrico del cuádriceps (frenado del movimiento).'
+    :te>4?'Descenso muy lento: posible cautela o miedo al movimiento.'
+    :'Descenso con tiempo suficiente para un control excéntrico del cuádriceps.')]);
+  if(te<1)rc.push('Enlentecer el descenso (2-3 s) para trabajar el control excéntrico.');
+
+  if(!isNaN(drift)){
+    it.push(['Tendencia',drift>5?`Pérdida de ${drift.toFixed(0)}° de profundidad entre la primera y la última repetición: posible fatiga muscular.`
+      :drift<-5?`Ganancia de ${(-drift).toFixed(0)}° de profundidad a lo largo de la serie: posible efecto de entrada en calor o adaptación.`
+      :'Profundidad estable a lo largo de la serie (sin signos claros de fatiga).']);
+    if(drift>5)rc.push('Reducir el número de repeticiones o aumentar la pausa entre series.');
+  }
+
+  it.push(['Contexto biomecánico','En el descenso predomina la contracción excéntrica de cuádriceps, glúteo mayor e isquiosurales; en el ascenso, concéntrica. Con flexión de rodilla sobre ~60° aumenta la compresión femoropatelar y el momento extensor, por lo que en rehabilitación el rango se progresa según la patología y la fase.']);
+
+  const html=`<h3>Análisis kinesiológico básico</h3>`+it.map(([a,b])=>`<div class="ki"><b>${a}:</b> ${b}</div>`).join('')
+    +`<b>Sugerencias</b><ul>${rc.map(r=>`<li>${r}</li>`).join('')}</ul>`
+    +`<small>Estimación 2D a partir de video: orientativa, no reemplaza la evaluación clínica ni la goniometría.</small>`;
+  return{html,it,rc};
+}
+
+/* ---------- Informe imprimible / PDF ---------- */
+function informe(){
+  if(!out||!kdat)return;
+  const w=window.open('','_blank');
+  if(!w){st('Permita ventanas emergentes para generar el informe.');return}
+  const img=$('ch').toDataURL('image/png');
+  const nm=($('pn').value.trim()||'No indicado').replace(/</g,'&lt;');
+  const lvl=$('interp').querySelector('.badge');
+  w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe SquatLab</title><style>
+body{font:14px/1.5 system-ui,sans-serif;color:#111;max-width:800px;margin:24px auto;padding:0 16px}
+h1{font-size:22px;margin:0}h2{font-size:16px;border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:22px}h3{display:none}
+.kk{display:flex;gap:10px}.kk div{flex:1;border:1px solid #ccc;border-radius:8px;padding:8px;text-align:center}.kk b{display:block;font-size:20px;color:#0369a1}
+img{width:100%;border:1px solid #ccc;border-radius:6px}table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{border:1px solid #ccc;padding:5px;text-align:center}th{background:#f1f5f9}.ki{margin:6px 0}small{color:#555}
+@media print{body{margin:0}}</style></head><body>
+<h1>Informe de análisis bioinstrumental de la sentadilla</h1>
+<p>Paciente / ID: <b>${nm}</b> · Fecha: ${new Date().toLocaleDateString('es-CL')}<br>
+Fuente: ${fromVideo?'video (MediaPipe Pose, estimación 2D)':'CSV / datos de demostración'} · Lado: ${$('side').value==='L'?'izquierdo':'derecho'} · Suavizado: ${$('sm').value} cuadros · Umbrales: ${out.dn}° / ${out.up}°</p>
+<h2>Resumen</h2>
+<div class="kk"><div><small>Repeticiones</small><b>${$('kr').textContent}</b></div><div><small>Ángulo mín. medio</small><b>${$('kd').textContent}</b></div><div><small>ROM medio</small><b>${$('ka').textContent}</b></div></div>
+<p><b>Clasificación:</b> ${lvl?lvl.textContent:'-'}</p>
+<h2>Curva de ángulo de rodilla</h2><img src="${img}" alt="Gráfico">
+<small>Zona verde: flexión profunda (≤ ${DEEP}°). Líneas discontinuas: umbrales de descenso y ascenso. Puntos amarillos: mínimo de cada repetición.</small>
+<h2>Detalle por repetición</h2>
+<table><thead><tr><th>Rep</th><th>Mín. (°)</th><th>Desc. (s)</th><th>Asc. (s)</th><th>Vel. (°/s)</th><th>ROM (°)</th></tr></thead><tbody>${$('tb').innerHTML.replace(/style="[^"]*"/g,'')}</tbody></table>
+<h2>Análisis kinesiológico</h2>${kdat.html}
+</body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(),600);
+}
+$('rep').onclick=informe;
+</script>
+</body>
+</html>
